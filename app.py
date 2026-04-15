@@ -19,18 +19,62 @@ st.set_page_config(
 )
 
 st.title("GLP-1 Need and Use Explorer")
+
 st.markdown(
     """
-This dashboard combines three views:
+This dashboard explores how **medical need and treatment use compare across the United States**
+for a class of medications called **GLP-1 therapies**.
+"""
+)
 
-1. **Need Map**  
-   County-level cardiometabolic burden using CDC PLACES data
+st.markdown(
+    """
+### What are GLP-1 medications?
 
-2. **Reported GLP-1 Use**  
-   NHIS-based weighted estimates among adults with prediabetes or diabetes
+GLP-1 drugs such as **Ozempic, Wegovy, and Mounjaro** are medications used to treat
+**type 2 diabetes and obesity**. They can help lower blood sugar, support weight loss,
+and improve other metabolic health outcomes.
 
-3. **Gap Analysis**  
-   Regional comparison of estimated need versus reported use
+In recent years, these medications have received major public attention because of their
+rapid rise in use, clinical effectiveness, and high demand.
+"""
+)
+
+st.markdown(
+    """
+### Why this matters
+
+GLP-1 medications have become one of the most discussed treatments in healthcare today.
+
+They are increasingly used to treat **type 2 diabetes and obesity**, but access, cost,
+and prescribing patterns vary across the country.
+
+This raises important questions:
+
+- Are these medications being used where they are most needed?
+- Are some populations more likely to receive treatment than others?
+- Are there regions where disease burden is high, but use appears lower than expected?
+
+By comparing **population-level health burden** with **reported medication use**,
+this dashboard highlights where these patterns may not align.
+
+While this analysis does not establish causation, it provides a data-driven view into
+**potential differences in access, utilization, and underlying need across regions**.
+"""
+)
+
+st.markdown(
+    """
+### Dashboard views
+
+**1. Need Map**  
+Shows where health conditions commonly treated by GLP-1 medications are most prevalent.
+
+**2. Reported GLP-1 Use**  
+Shows how often people report using injectable medications such as GLP-1 drugs.
+
+**3. Gap Analysis**  
+Compares where estimated need is highest with where reported use is highest.
 """
 )
 
@@ -122,10 +166,9 @@ metric_options = {
 }
 
 gap_label_order = [
-    "High unmet need",
-    "Moderate unmet need",
-    "Need and use relatively aligned",
-    "Use exceeds relative need"
+    "Higher need than use",
+    "Need and use are relatively aligned",
+    "Use is higher than expected based on need"
 ]
 
 # --------------------------------------------------
@@ -155,7 +198,7 @@ def create_county_map(df, counties_geojson, metric_col, legend_title):
                 f"{legend_title}: {metric_display}<br>"
                 f"Obesity: {row['Obesity']:.1f}%<br>"
                 f"Diabetes: {row['Diabetes']:.1f}%<br>"
-                f"High BP: {row['HighBP']:.1f}%<br>"
+                f"High blood pressure: {row['HighBP']:.1f}%<br>"
                 f"GLP-1 Need Proxy Score: {row['NeedScore']:.1f}"
             )
         else:
@@ -194,7 +237,7 @@ def create_county_map(df, counties_geojson, metric_col, legend_title):
 # --------------------------------------------------
 # CHART FUNCTIONS
 # --------------------------------------------------
-def percent_bar(df, x_col, y_col, title, x_title, y_title="Weighted proportion"):
+def percent_bar(df, x_col, y_col, title, x_title, y_title="Estimated % using GLP-1 medications"):
     fig = px.bar(
         df,
         x=x_col,
@@ -209,7 +252,7 @@ def percent_bar(df, x_col, y_col, title, x_title, y_title="Weighted proportion")
     return fig
 
 
-def percent_line(df, x_col, y_col, title, x_title, y_title="Weighted proportion"):
+def percent_line(df, x_col, y_col, title, x_title, y_title="Estimated % using GLP-1 medications"):
     fig = px.line(
         df,
         x=x_col,
@@ -222,6 +265,27 @@ def percent_line(df, x_col, y_col, title, x_title, y_title="Weighted proportion"
     fig.update_layout(height=450)
     return fig
 
+
+# --------------------------------------------------
+# GAP LABELS
+# --------------------------------------------------
+def classify_gap(x):
+    if x >= 5:
+        return "Higher need than use"
+    elif x > -5:
+        return "Need and use are relatively aligned"
+    else:
+        return "Use is higher than expected based on need"
+
+
+if "gap_label" not in gap_df.columns:
+    gap_df["gap_label"] = gap_df["gap_score"].apply(classify_gap)
+
+gap_df["gap_label"] = pd.Categorical(
+    gap_df["gap_label"],
+    categories=gap_label_order,
+    ordered=True
+)
 
 # --------------------------------------------------
 # TABS
@@ -237,6 +301,19 @@ tab1, tab2, tab3 = st.tabs([
 # --------------------------------------------------
 with tab1:
     st.subheader("County-Level Need Map")
+
+    st.markdown(
+        """
+This map shows where **health conditions commonly treated by GLP-1 medications** are most common.
+
+The **GLP-1 Need Proxy Score** combines:
+- obesity prevalence
+- diagnosed diabetes prevalence
+- high blood pressure prevalence
+
+Higher values suggest counties where the underlying health burden is greater.
+"""
+    )
 
     selected_metric_name = st.selectbox(
         "Choose a map layer",
@@ -259,16 +336,27 @@ with tab1:
 
     with col_right:
         st.markdown("### About this map")
+
         if metric_col == "NeedScore":
             st.write(
-                "The GLP-1 Need Proxy Score is a composite county-level index using obesity, diagnosed diabetes, and high blood pressure prevalence."
+                "This layer shows a combined score based on obesity, diabetes, and high blood pressure prevalence. "
+                "It is meant to approximate where potential need for GLP-1 treatment may be higher."
             )
         elif metric_col == "Obesity":
-            st.write("This layer shows county-level adult obesity prevalence.")
+            st.write(
+                "This layer shows county-level adult obesity prevalence. Obesity is one of the main conditions "
+                "for which GLP-1 medications may be prescribed."
+            )
         elif metric_col == "Diabetes":
-            st.write("This layer shows county-level diagnosed diabetes prevalence.")
+            st.write(
+                "This layer shows county-level diagnosed diabetes prevalence. GLP-1 medications are commonly used "
+                "in diabetes treatment."
+            )
         elif metric_col == "HighBP":
-            st.write("This layer shows county-level adult high blood pressure prevalence.")
+            st.write(
+                "This layer shows county-level adult high blood pressure prevalence. While not a direct GLP-1 indication, "
+                "it helps capture broader cardiometabolic burden."
+            )
 
         st.markdown("### Top 10 counties")
         top10 = cdc_map_df.sort_values(metric_col, ascending=False).head(10).copy()
@@ -288,7 +376,33 @@ with tab1:
 # --------------------------------------------------
 with tab2:
     st.subheader("Reported GLP-1 Injectable Use")
-    st.caption("Weighted estimates among adults with prediabetes or diabetes who provided a valid GLP-1 response.")
+
+    st.markdown(
+        """
+This section shows **how often people report using injectable medications such as GLP-1 drugs**.
+
+These estimates come from the **National Health Interview Survey (NHIS)** and focus on adults who:
+- reported having **prediabetes or diabetes**
+- answered the survey question about injectable medication use
+
+The percentages shown here are **survey-weighted estimates**, which means they are adjusted to better reflect
+the U.S. population rather than only the survey sample.
+"""
+    )
+
+    st.markdown(
+        """
+### Why the percentages are estimates
+
+NHIS is a national survey, not a full census.  
+Because of that, the values shown here are **estimated percentages** based on survey responses.
+
+These estimates help answer questions like:
+
+- Which regions report higher GLP-1 use?
+- Do usage patterns differ across age, geography, or income levels?
+"""
+    )
 
     row1_col1, row1_col2 = st.columns(2)
     row2_col1, row2_col2 = st.columns(2)
@@ -314,6 +428,22 @@ with tab2:
         st.plotly_chart(fig_urban, use_container_width=True)
 
     with row2_col1:
+        st.markdown(
+            """
+### What is income-to-poverty ratio?
+
+This compares a household’s income to the federal poverty level:
+
+- **1.0** = at the poverty line
+- **below 1.0** = below poverty
+- **above 1.0** = above poverty
+
+For example:
+- **0.50** means half the poverty level
+- **2.00** means twice the poverty level
+"""
+        )
+
         fig_income = percent_line(
             income_usage,
             x_col="income_label",
@@ -334,12 +464,14 @@ with tab2:
         )
         st.plotly_chart(fig_age, use_container_width=True)
 
-    st.markdown("### Quick takeaways")
-    st.write(
-        "- Regional variation is visible, with higher reported use in the South and Midwest than in the West.\n"
-        "- Nonmetropolitan and medium/small metro groups show relatively high reported use.\n"
-        "- Use tends to peak in middle to older adulthood, especially ages 50–64.\n"
-        "- Income gradients are not strictly linear, which makes the pattern more informative."
+    st.markdown("### Key insights")
+    st.markdown(
+        """
+- **Reported GLP-1 use is highest in the South and Midwest**, where cardiometabolic burden is also elevated  
+- **Rural and smaller metro areas show relatively high reported use**, which may reflect greater disease burden  
+- **Use peaks among adults aged 50–64**, consistent with higher diabetes and obesity prevalence in mid-to-late adulthood  
+- **Income patterns are not strictly linear**, suggesting that access is shaped by more than income alone
+"""
     )
 
 # --------------------------------------------------
@@ -347,41 +479,46 @@ with tab2:
 # --------------------------------------------------
 with tab3:
     st.subheader("Regional Gap Analysis")
-    st.caption("This compares regional cardiometabolic burden from CDC data with reported GLP-1 use from NHIS. It is a relative comparison, not a causal estimate.")
 
-    gap_display = gap_df.copy()
+    st.markdown(
+        """
+This section compares **estimated need** with **reported use** at the regional level.
 
-    if "gap_label" not in gap_display.columns:
-        def classify_gap(x):
-            if x >= 15:
-                return "High unmet need"
-            elif x >= 5:
-                return "Moderate unmet need"
-            elif x > -5:
-                return "Need and use relatively aligned"
-            else:
-                return "Use exceeds relative need"
-        gap_display["gap_label"] = gap_display["gap_score"].apply(classify_gap)
+Because the need score and use rate are measured on different scales, both are converted to a **common 0–100 scale**
+so they can be compared more directly.
 
-    gap_display["gap_label"] = pd.Categorical(
-        gap_display["gap_label"],
-        categories=gap_label_order,
-        ordered=True
+This does **not** prove causation. Instead, it helps show where:
+- estimated need appears higher than reported use
+- need and use are relatively aligned
+- or use appears higher than expected based on need
+"""
+    )
+
+    st.markdown(
+        """
+### How to interpret the gap
+
+- **Positive values** mean need is higher than use  
+- **Values near zero** mean need and use are relatively aligned  
+- **Negative values** mean use is higher than expected based on need  
+
+This is best interpreted as a **relative comparison**, not a definitive access measure.
+"""
     )
 
     top_row_left, top_row_right = st.columns(2)
 
     with top_row_left:
         fig_gap = px.bar(
-            gap_display,
+            gap_df,
             x="region",
             y="gap_score",
             color="gap_label",
-            title="Regional Gap Between Need and Reported GLP-1 Use",
+            title="Regional Difference Between Estimated Need and Reported Use",
             labels={
                 "region": "Region",
-                "gap_score": "Gap score (normalized need - normalized use)",
-                "gap_label": "Gap classification"
+                "gap_score": "Difference between estimated need and reported use",
+                "gap_label": "Interpretation"
             }
         )
         fig_gap.update_layout(height=450)
@@ -390,26 +527,26 @@ with tab3:
     with top_row_right:
         fig_compare = go.Figure()
         fig_compare.add_trace(go.Bar(
-            x=gap_display["region"],
-            y=gap_display["need_norm"],
-            name="Normalized Need"
+            x=gap_df["region"],
+            y=gap_df["need_norm"],
+            name="Estimated need (rescaled)"
         ))
         fig_compare.add_trace(go.Bar(
-            x=gap_display["region"],
-            y=gap_display["use_norm"],
-            name="Normalized GLP-1 Use"
+            x=gap_df["region"],
+            y=gap_df["use_norm"],
+            name="Reported use (rescaled)"
         ))
         fig_compare.update_layout(
-            title="Normalized Need vs Reported Use by Region",
+            title="Estimated Need vs Reported Use by Region",
             barmode="group",
             xaxis_title="Region",
-            yaxis_title="Normalized score (0-100)",
+            yaxis_title="Rescaled comparison (0-100)",
             height=450
         )
         st.plotly_chart(fig_compare, use_container_width=True)
 
     st.markdown("### Regional summary table")
-    summary_table = gap_display[[
+    summary_table = gap_df[[
         "region",
         "avg_need_score",
         "glp1_use_rate",
@@ -425,10 +562,20 @@ with tab3:
     summary_table["use_norm"] = summary_table["use_norm"].map(lambda x: f"{x:.1f}")
     summary_table["gap_score"] = summary_table["gap_score"].map(lambda x: f"{x:.1f}")
 
+    summary_table = summary_table.rename(columns={
+        "region": "Region",
+        "avg_need_score": "Average need score",
+        "glp1_use_rate": "Estimated GLP-1 use",
+        "need_norm": "Need (rescaled)",
+        "use_norm": "Use (rescaled)",
+        "gap_score": "Difference",
+        "gap_label": "Interpretation"
+    })
+
     st.dataframe(summary_table, use_container_width=True)
 
-    st.markdown("### Interpretation")
+    st.markdown("### Why this matters")
     st.write(
-        "Positive gap scores suggest regions where cardiometabolic burden is relatively high compared with reported GLP-1 use. "
-        "Negative gap scores suggest regions where reported use is relatively high compared with the burden metric."
+        "This view helps identify regions where underlying cardiometabolic burden and reported GLP-1 use do not fully line up. "
+        "That may reflect differences in prescribing patterns, access, awareness, insurance coverage, or clinical demand."
     )
